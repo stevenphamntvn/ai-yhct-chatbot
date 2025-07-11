@@ -1,4 +1,15 @@
 # file: app.py
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+
+# --- PHẦN CÒN LẠI CỦA FILE GIỮ NGUYÊN ---
+
+
+
+
+# file: app.py
 import streamlit as st
 import chromadb
 import google.generativeai as genai
