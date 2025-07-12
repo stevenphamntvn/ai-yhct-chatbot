@@ -39,7 +39,8 @@ MODEL_PRICING = {
 }
 MODEL_OPTIONS = list(MODEL_PRICING.keys())
 
-# --- CÁC VAI TRÒ (PERSONA) CHO AI ---
+# --- TỶ GIÁ VÀ CÁC VAI TRÒ (PERSONA) CHO AI ---
+USD_TO_VND_RATE = 25500  # Tỷ giá USD/VND (bạn có thể cập nhật)
 PERSONAS = {
     "Lương y già": "Bạn là một lương y già, uyên bác và có giọng văn hoài cổ. Hãy dùng các từ ngữ xưa và xưng hô là 'lão phu'.",
     "Lương y trẻ": "Bạn là một người bạn thân thiện, giải thích các khái niệm y học một cách đơn giản, dễ hiểu như đang nói chuyện với người không có chuyên môn."
@@ -90,7 +91,6 @@ def get_ai_response(question, model, collection, model_name, system_instruction)
     results = collection.query(query_texts=[question], n_results=3)
     context = "\n\n---\n\n".join(results['documents'][0])
     
-    # Kết hợp chỉ dẫn hệ thống với prompt chính
     prompt = f"""{system_instruction}
 
     Dựa vào thông tin tham khảo được cung cấp dưới đây, hãy trả lời câu hỏi của người dùng.
@@ -111,41 +111,48 @@ def get_ai_response(question, model, collection, model_name, system_instruction)
         
         input_cost = (prompt_tokens / 1_000_000) * price_input
         output_cost = (response_tokens / 1_000_000) * price_output
+        total_cost_usd = input_cost + output_cost
         
         usage_info = {
             "model": model_name,
             "prompt_tokens": prompt_tokens,
             "response_tokens": response_tokens,
             "total_tokens": usage.total_token_count,
-            "cost_usd": input_cost + output_cost
+            "cost_usd": total_cost_usd,
+            "cost_vnd": total_cost_usd * USD_TO_VND_RATE
         }
     except Exception:
-        pass # Bỏ qua nếu không lấy được thông tin sử dụng
+        pass
 
-    # Không trả về sources nữa
     return response.text, usage_info
 
 # --- GIAO DIỆN NGƯỜI DÙNG STREAMLIT ---
 st.set_page_config(page_title="Trợ lý Y học Cổ truyền", page_icon="🌿")
 st.title("🌿 Trợ lý Y học Cổ truyền")
 
-# Thanh bên để chọn mô hình và vai trò
+# Khởi tạo tổng chi phí trong session state
+if 'total_session_cost_vnd' not in st.session_state:
+    st.session_state.total_session_cost_vnd = 0.0
+
+# Thanh bên để chọn mô hình, vai trò và xem tổng chi phí
 with st.sidebar:
     st.header("Cấu hình")
     selected_model_name = st.selectbox(
         "Chọn mô hình AI:",
         options=MODEL_OPTIONS,
-        index=0, # Mặc định chọn 'gemini-1.5-flash-latest'
+        index=0,
     )
     
-    st.header("Chọn vai trò của AI")
     selected_persona_name = st.selectbox(
         "Chọn phong cách trả lời:",
         options=PERSONA_OPTIONS,
-        index=0 # Mặc định chọn "Lương y già"
+        index=0
     )
-    # Lấy chỉ dẫn hệ thống tương ứng
     system_instruction = PERSONAS[selected_persona_name]
+    
+    st.divider()
+    st.header("Thống kê")
+    st.metric("Tổng chi phí phiên này", f"{st.session_state.total_session_cost_vnd:,.0f} VNĐ")
 
 
 # Bước 1: Đảm bảo database đã sẵn sàng
@@ -176,15 +183,16 @@ if setup_database():
 
             with st.chat_message("assistant"):
                 with st.spinner(f"AI ({selected_model_name}) đang suy nghĩ..."):
-                    # Truyền thêm system_instruction vào hàm
                     response_text, usage_info = get_ai_response(prompt, llm_model, collection, selected_model_name, system_instruction)
                     
-                    # Không hiển thị nguồn tham khảo nữa
                     st.markdown(response_text)
                     
                     if usage_info:
+                        # Cập nhật tổng chi phí
+                        st.session_state.total_session_cost_vnd += usage_info['cost_vnd']
+                        
                         with st.expander("Xem chi tiết sử dụng API"):
-                            st.metric("Chi phí (USD)", f"${usage_info['cost_usd']:.6f}")
+                            st.metric("Chi phí lần hỏi này", f"{usage_info['cost_vnd']:,.2f} VNĐ")
                             st.caption(f"Tokens: {usage_info['total_tokens']} | Đầu vào: {usage_info['prompt_tokens']} | Đầu ra: {usage_info['response_tokens']}")
 
             # Lưu lại vào lịch sử chat
@@ -192,10 +200,13 @@ if setup_database():
                 usage_html = f"""
                 <details>
                     <summary>Xem chi tiết sử dụng API</summary>
-                    <p><b>Chi phí (USD):</b> ${usage_info['cost_usd']:.6f}</p>
+                    <p><b>Chi phí lần hỏi này:</b> {usage_info['cost_vnd']:,.2f} VNĐ</p>
                 </details>
                 """
                 full_response_to_save = response_text + usage_html
             else:
                 full_response_to_save = response_text
             st.session_state.messages.append({"role": "assistant", "content": full_response_to_save})
+            
+            # Chạy lại để cập nhật tổng chi phí trên sidebar
+            st.rerun()
