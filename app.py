@@ -77,12 +77,18 @@ def load_db():
         return None
 
 # --- HÀM LOGIC XỬ LÝ CÂU HỎI ---
-def get_ai_response(question, model, collection, model_name):
+def get_ai_response(question, model, collection, model_name, system_instruction):
     """Lấy câu trả lời từ AI và thông tin sử dụng."""
     results = collection.query(query_texts=[question], n_results=3)
     context = "\n\n---\n\n".join(results['documents'][0])
-    prompt = f"""Dựa vào thông tin tham khảo dưới đây, hãy trả lời câu hỏi của người dùng.
+    
+    # Kết hợp chỉ dẫn hệ thống với prompt chính
+    prompt = f"""{system_instruction}
+
+    Dựa vào thông tin tham khảo được cung cấp dưới đây, hãy trả lời câu hỏi của người dùng.
+    
     Thông tin tham khảo: {context}
+    
     Câu hỏi: {question}"""
     
     response = model.generate_content(prompt)
@@ -114,7 +120,7 @@ def get_ai_response(question, model, collection, model_name):
 st.set_page_config(page_title="Trợ lý Y học Cổ truyền", page_icon="🌿")
 st.title("🌿 Trợ lý Y học Cổ truyền")
 
-# Thanh bên để chọn mô hình
+# Thanh bên để chọn mô hình và tùy chỉnh vai trò
 with st.sidebar:
     st.header("Cấu hình")
     selected_model = st.selectbox(
@@ -124,6 +130,14 @@ with st.sidebar:
         help="Flash nhanh và rẻ hơn, Pro thông minh hơn."
     )
     st.caption(f"Bạn đã chọn: `{selected_model}`")
+
+    st.header("Tùy chỉnh vai trò của AI")
+    system_instruction = st.text_area(
+        "Nhập vai trò, giọng văn, cách xưng hô bạn muốn AI tuân theo:",
+        value="Bạn là một lương y già, uyên bác và có giọng văn hoài cổ. Hãy dùng các từ ngữ xưa và xưng hô là 'lão phu'. Bạn không cần trích dẫn nguồn là từ đâu trong các câu trả lời của mình, chỉ là nói theo kiến thức của 'lão phu' là đủ",
+        height=150
+    )
+
 
 # Bước 1: Đảm bảo database đã sẵn sàng
 if setup_database():
@@ -153,7 +167,8 @@ if setup_database():
 
             with st.chat_message("assistant"):
                 with st.spinner(f"AI ({selected_model}) đang suy nghĩ..."):
-                    response_text, sources, usage_info = get_ai_response(prompt, llm_model, collection, selected_model)
+                    # Truyền thêm system_instruction vào hàm
+                    response_text, sources, usage_info = get_ai_response(prompt, llm_model, collection, selected_model, system_instruction)
                     
                     source_markdown = "\n\n---\n**Nguồn tham khảo:**\n" + "\n".join([f"- `{s}`" for s in sources])
                     full_response_text = response_text + source_markdown
