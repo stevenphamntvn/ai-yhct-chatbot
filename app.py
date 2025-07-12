@@ -1,6 +1,12 @@
 # file: app.py
-# Phiên bản nâng cấp để hỗ trợ triển khai online
-# Đã xóa các dòng __import__('pysqlite3') không cần thiết
+# Phiên bản đã sửa lỗi để chạy trên Streamlit Community Cloud
+
+# --- PHẦN SỬA LỖI QUAN TRỌNG ---
+# Ba dòng này phải nằm ở ngay đầu file
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+# --------------------------------
 
 import streamlit as st
 import chromadb
@@ -12,13 +18,13 @@ from io import BytesIO
 
 # --- PHẦN CẤU HÌNH ---
 # API Key của bạn từ Google Cloud
-GOOGLE_API_KEY = 'YOUR_API_KEY' # !!! THAY API KEY CỦA BẠN VÀO ĐÂY !!!
+GOOGLE_API_KEY = 'AIzaSyBOAgpJI1voNNxeOC6sS7y01EJRXWSK0YU' # !!! THAY API KEY CỦA BẠN VÀO ĐÂY !!!
 # Tên mô hình bạn muốn sử dụng
 MODEL_NAME = 'gemini-1.5-pro-latest'
 
 # --- CẤU HÌNH MỚI CHO TRIỂN KHAI ONLINE ---
-# !!! ĐÃ CẬP NHẬT LINK GOOGLE DRIVE CỦA BẠN VÀO ĐÂY
-DB_ZIP_URL = "https://drive.google.com/uc?export=download&id=1-2q9AG84492czMsWmhTbQziBDRyvFP0X"
+# !!! QUAN TRỌNG: Dán đường dẫn tải trực tiếp file zip của bạn vào đây
+DB_ZIP_URL = "YOUR_DIRECT_DOWNLOAD_LINK_TO_THE_DB_ZIP_FILE"
 DB_PATH = 'yhct_chroma_db'
 COLLECTION_NAME = 'yhct_collection'
 
