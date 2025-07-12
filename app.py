@@ -24,7 +24,7 @@ MODEL_NAME = 'gemini-1.5-pro-latest'
 
 # --- CẤU HÌNH MỚI CHO TRIỂN KHAI ONLINE ---
 # !!! QUAN TRỌNG: Dán đường dẫn tải trực tiếp file zip của bạn vào đây
-DB_ZIP_URL = "YOUR_DIRECT_DOWNLOAD_LINK_TO_THE_DB_ZIP_FILE"
+DB_ZIP_URL = "https://drive.google.com/uc?export=download&id=1-2q9AG84492czMsWmhTbQziBDRyvFP0X"
 DB_PATH = 'yhct_chroma_db'
 COLLECTION_NAME = 'yhct_collection'
 
