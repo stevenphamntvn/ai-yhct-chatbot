@@ -1,4 +1,5 @@
-Chạy online, sửa lỗi, và cho phép lựa chọn vai trò AI.
+# file: app.py
+# Phiên bản hoàn chỉnh: Chạy online, sửa lỗi, và cho phép lựa chọn vai trò AI.
 
 # --- PHẦN SỬA LỖI QUAN TRỌNG CHO STREAMLIT CLOUD ---
 # Ba dòng này phải nằm ở ngay đầu file
