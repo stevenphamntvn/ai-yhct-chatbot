@@ -1,5 +1,4 @@
-# file: app.py
-# Phiên bản hoàn chỉnh: Chạy online, sửa lỗi, và cho phép lựa chọn mô hình AI.
+Chạy online, sửa lỗi, và cho phép lựa chọn vai trò AI.
 
 # --- PHẦN SỬA LỖI QUAN TRỌNG CHO STREAMLIT CLOUD ---
 # Ba dòng này phải nằm ở ngay đầu file
@@ -29,15 +28,23 @@ COLLECTION_NAME = 'yhct_collection'
 # --- BẢNG GIÁ VÀ LỰA CHỌN MÔ HÌNH ---
 MODEL_PRICING = {
     "gemini-1.5-flash-latest": {
-        "input": 0.35,  # $0.35 cho mỗi 1 triệu token
-        "output": 1.05  # $1.05 cho mỗi 1 triệu token
+        "input": 0.35,
+        "output": 1.05
     },
     "gemini-1.5-pro-latest": {
-        "input": 3.50,  # $3.50 cho mỗi 1 triệu token
-        "output": 10.50 # $10.50 cho mỗi 1 triệu token
+        "input": 3.50,
+        "output": 10.50
     }
 }
 MODEL_OPTIONS = list(MODEL_PRICING.keys())
+
+# --- CÁC VAI TRÒ (PERSONA) CHO AI ---
+PERSONAS = {
+    "Lương y già": "Bạn là một lương y già, uyên bác và có giọng văn hoài cổ. Hãy dùng các từ ngữ xưa và xưng hô là 'lão phu'.",
+    "Lương y trẻ": "Bạn là một người bạn thân thiện, giải thích các khái niệm y học một cách đơn giản, dễ hiểu như đang nói chuyện với người không có chuyên môn."
+}
+PERSONA_OPTIONS = list(PERSONAS.keys())
+
 
 # --- HÀM TẢI VÀ GIẢI NÉN DATABASE ---
 def setup_database():
@@ -114,29 +121,30 @@ def get_ai_response(question, model, collection, model_name, system_instruction)
     except Exception:
         pass # Bỏ qua nếu không lấy được thông tin sử dụng
 
-    return response.text, set(meta['source'] for meta in results['metadatas'][0]), usage_info
+    # Không trả về sources nữa
+    return response.text, usage_info
 
 # --- GIAO DIỆN NGƯỜI DÙNG STREAMLIT ---
 st.set_page_config(page_title="Trợ lý Y học Cổ truyền", page_icon="🌿")
 st.title("🌿 Trợ lý Y học Cổ truyền")
 
-# Thanh bên để chọn mô hình và tùy chỉnh vai trò
+# Thanh bên để chọn mô hình và vai trò
 with st.sidebar:
     st.header("Cấu hình")
-    selected_model = st.selectbox(
+    selected_model_name = st.selectbox(
         "Chọn mô hình AI:",
         options=MODEL_OPTIONS,
         index=0, # Mặc định chọn 'gemini-1.5-flash-latest'
-        help="Flash nhanh và rẻ hơn, Pro thông minh hơn."
     )
-    st.caption(f"Bạn đã chọn: `{selected_model}`")
-
-    st.header("Tùy chỉnh vai trò của AI")
-    system_instruction = st.text_area(
-        "Nhập vai trò, giọng văn, cách xưng hô bạn muốn AI tuân theo:",
-        value="Bạn là một lương y già, uyên bác và có giọng văn hoài cổ. Hãy dùng các từ ngữ xưa và xưng hô là 'lão phu'. Bạn không cần trích dẫn nguồn là từ đâu trong các câu trả lời của mình, chỉ là nói theo kiến thức của 'lão phu' là đủ",
-        height=150
+    
+    st.header("Chọn vai trò của AI")
+    selected_persona_name = st.selectbox(
+        "Chọn phong cách trả lời:",
+        options=PERSONA_OPTIONS,
+        index=0 # Mặc định chọn "Lương y già"
     )
+    # Lấy chỉ dẫn hệ thống tương ứng
+    system_instruction = PERSONAS[selected_persona_name]
 
 
 # Bước 1: Đảm bảo database đã sẵn sàng
@@ -144,7 +152,7 @@ if setup_database():
     # Bước 2: Khởi tạo AI và DB
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        llm_model = genai.GenerativeModel(selected_model)
+        llm_model = genai.GenerativeModel(selected_model_name)
         collection = load_db()
     except Exception as e:
         st.error(f"Lỗi khởi tạo AI. Vui lòng kiểm tra API Key. Lỗi: {e}")
@@ -166,13 +174,12 @@ if setup_database():
                 st.markdown(prompt)
 
             with st.chat_message("assistant"):
-                with st.spinner(f"AI ({selected_model}) đang suy nghĩ..."):
+                with st.spinner(f"AI ({selected_model_name}) đang suy nghĩ..."):
                     # Truyền thêm system_instruction vào hàm
-                    response_text, sources, usage_info = get_ai_response(prompt, llm_model, collection, selected_model, system_instruction)
+                    response_text, usage_info = get_ai_response(prompt, llm_model, collection, selected_model_name, system_instruction)
                     
-                    source_markdown = "\n\n---\n**Nguồn tham khảo:**\n" + "\n".join([f"- `{s}`" for s in sources])
-                    full_response_text = response_text + source_markdown
-                    st.markdown(full_response_text)
+                    # Không hiển thị nguồn tham khảo nữa
+                    st.markdown(response_text)
                     
                     if usage_info:
                         with st.expander("Xem chi tiết sử dụng API"):
@@ -187,7 +194,7 @@ if setup_database():
                     <p><b>Chi phí (USD):</b> ${usage_info['cost_usd']:.6f}</p>
                 </details>
                 """
-                full_response_to_save = full_response_text + usage_html
+                full_response_to_save = response_text + usage_html
             else:
-                full_response_to_save = full_response_text
+                full_response_to_save = response_text
             st.session_state.messages.append({"role": "assistant", "content": full_response_to_save})
