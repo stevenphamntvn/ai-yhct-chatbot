@@ -18,11 +18,11 @@ from io import BytesIO
 
 # --- PHẦN CẤU HÌNH ---
 # API Key của bạn từ Google Cloud
-GOOGLE_API_KEY = 'YOUR_API_KEY' # !!! THAY API KEY CỦA BẠN VÀO ĐÂY !!!
+GOOGLE_API_KEY = 'AIzaSyBOAgpJI1voNNxeOC6sS7y01EJRXWSK0YU' # !!! THAY API KEY CỦA BẠN VÀO ĐÂY !!!
 
 # --- CẤU HÌNH TRIỂN KHAI ONLINE ---
 # !!! QUAN TRỌNG: Dán đường dẫn tải trực tiếp file zip của bạn vào đây
-DB_ZIP_URL = "YOUR_DIRECT_DOWNLOAD_LINK_TO_THE_DB_ZIP_FILE"
+DB_ZIP_URL = "https://drive.google.com/uc?export=download&id=1-2q9AG84492czMsWmhTbQziBDRyvFP0X"
 DB_PATH = 'yhct_chroma_db'
 COLLECTION_NAME = 'yhct_collection'
 
@@ -194,7 +194,7 @@ if setup_database():
     total_cost_display = f"""
     <div style="
         position: fixed;
-        bottom: 10px;
+        bottom: 45px; /* Đã tăng giá trị từ 10px lên 45px */
         right: 10px;
         background-color: #f0f2f6;
         padding: 5px 10px;
