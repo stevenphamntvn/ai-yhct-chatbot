@@ -1,5 +1,5 @@
 # file: app.py
-# Phiên bản hoàn chỉnh: Chạy online, sửa lỗi, và cho phép lựa chọn vai trò AI.
+# Phiên bản hoàn chỉnh: Giao diện tinh gọn, ẩn chi tiết API, hiển thị tổng chi phí ở góc phải.
 
 # --- PHẦN SỬA LỖI QUAN TRỌNG CHO STREAMLIT CLOUD ---
 # Ba dòng này phải nằm ở ngay đầu file
@@ -114,11 +114,6 @@ def get_ai_response(question, model, collection, model_name, system_instruction)
         total_cost_usd = input_cost + output_cost
         
         usage_info = {
-            "model": model_name,
-            "prompt_tokens": prompt_tokens,
-            "response_tokens": response_tokens,
-            "total_tokens": usage.total_token_count,
-            "cost_usd": total_cost_usd,
             "cost_vnd": total_cost_usd * USD_TO_VND_RATE
         }
     except Exception:
@@ -134,7 +129,7 @@ st.title("🌿 Trợ lý Y học Cổ truyền")
 if 'total_session_cost_vnd' not in st.session_state:
     st.session_state.total_session_cost_vnd = 0.0
 
-# Thanh bên để chọn mô hình, vai trò và xem tổng chi phí
+# Thanh bên để chọn mô hình và vai trò
 with st.sidebar:
     st.header("Cấu hình")
     selected_model_name = st.selectbox(
@@ -150,10 +145,6 @@ with st.sidebar:
     )
     system_instruction = PERSONAS[selected_persona_name]
     
-    st.divider()
-    st.header("Thống kê")
-    st.metric("Tổng chi phí phiên này", f"{st.session_state.total_session_cost_vnd:,.0f} VNĐ")
-
 
 # Bước 1: Đảm bảo database đã sẵn sàng
 if setup_database():
@@ -174,7 +165,7 @@ if setup_database():
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
-                st.markdown(message["content"], unsafe_allow_html=True)
+                st.markdown(message["content"])
 
         if prompt := st.chat_input("Ví dụ: Bệnh Thái Dương là gì?"):
             st.session_state.messages.append({"role": "user", "content": prompt})
@@ -185,28 +176,35 @@ if setup_database():
                 with st.spinner(f"AI ({selected_model_name}) đang suy nghĩ..."):
                     response_text, usage_info = get_ai_response(prompt, llm_model, collection, selected_model_name, system_instruction)
                     
+                    # Chỉ hiển thị câu trả lời, không hiển thị nguồn
                     st.markdown(response_text)
                     
                     if usage_info:
                         # Cập nhật tổng chi phí
                         st.session_state.total_session_cost_vnd += usage_info['cost_vnd']
-                        
-                        with st.expander("Xem chi tiết sử dụng API"):
-                            st.metric("Chi phí lần hỏi này", f"{usage_info['cost_vnd']:,.2f} VNĐ")
-                            st.caption(f"Tokens: {usage_info['total_tokens']} | Đầu vào: {usage_info['prompt_tokens']} | Đầu ra: {usage_info['response_tokens']}")
-
-            # Lưu lại vào lịch sử chat
-            if usage_info:
-                usage_html = f"""
-                <details>
-                    <summary>Xem chi tiết sử dụng API</summary>
-                    <p><b>Chi phí lần hỏi này:</b> {usage_info['cost_vnd']:,.2f} VNĐ</p>
-                </details>
-                """
-                full_response_to_save = response_text + usage_html
-            else:
-                full_response_to_save = response_text
-            st.session_state.messages.append({"role": "assistant", "content": full_response_to_save})
             
-            # Chạy lại để cập nhật tổng chi phí trên sidebar
+            # Lưu câu trả lời vào lịch sử chat
+            st.session_state.messages.append({"role": "assistant", "content": response_text})
+            
+            # Chạy lại để cập nhật tổng chi phí
             st.rerun()
+
+    # Hiển thị tổng chi phí ở góc dưới bên phải
+    # Sử dụng HTML và CSS để định vị
+    total_cost_display = f"""
+    <div style="
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        background-color: #f0f2f6;
+        padding: 5px 10px;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        font-size: 0.8em;
+        z-index: 1000;
+        color: #333;
+    ">
+        Tổng chi phí phiên này: {st.session_state.total_session_cost_vnd:,.0f} VNĐ
+    </div>
+    """
+    st.markdown(total_cost_display, unsafe_allow_html=True)
