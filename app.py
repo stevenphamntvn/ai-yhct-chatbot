@@ -1,24 +1,66 @@
 # file: app.py
+# Phiên bản nâng cấp để hỗ trợ triển khai online
 # Đã xóa các dòng __import__('pysqlite3') không cần thiết
 
 import streamlit as st
 import chromadb
 import google.generativeai as genai
+import os
+import requests
+import zipfile
+from io import BytesIO
 
 # --- PHẦN CẤU HÌNH ---
 # API Key của bạn từ Google Cloud
-GOOGLE_API_KEY = 'AIzaSyBOAgpJI1voNNxeOC6sS7y01EJRXWSK0YU' # !!! THAY API KEY CỦA BẠN VÀO ĐÂY !!!
-# Đường dẫn tới cơ sở dữ liệu vector
-DB_PATH = 'yhct_chroma_db'
-# Tên của bộ sưu tập trong database
-COLLECTION_NAME = 'yhct_collection'
+GOOGLE_API_KEY = 'YOUR_API_KEY' # !!! THAY API KEY CỦA BẠN VÀO ĐÂY !!!
 # Tên mô hình bạn muốn sử dụng
 MODEL_NAME = 'gemini-1.5-pro-latest'
 
+# --- CẤU HÌNH MỚI CHO TRIỂN KHAI ONLINE ---
+# !!! ĐÃ CẬP NHẬT LINK GOOGLE DRIVE CỦA BẠN VÀO ĐÂY
+DB_ZIP_URL = "https://drive.google.com/uc?export=download&id=1-2q9AG84492czMsWmhTbQziBDRyvFP0X"
+DB_PATH = 'yhct_chroma_db'
+COLLECTION_NAME = 'yhct_collection'
+
+
 # --- BẢNG GIÁ (Cập nhật tháng 7/2025 - Vui lòng kiểm tra lại giá trên trang của Google) ---
-# Giá cho mỗi 1 triệu token
 PRICE_PER_MILLION_INPUT_TOKENS = 3.50  # $3.50
 PRICE_PER_MILLION_OUTPUT_TOKENS = 10.50 # $10.50
+
+# --- HÀM TẢI VÀ GIẢI NÉN DATABASE ---
+def setup_database():
+    """
+    Kiểm tra sự tồn tại của database. Nếu không có, tải về và giải nén.
+    Hàm này trả về True nếu database sẵn sàng, False nếu có lỗi.
+    """
+    if not os.path.exists(DB_PATH):
+        st.info(f"Không tìm thấy database '{DB_PATH}'. Bắt đầu tải về từ cloud...")
+        st.warning("Quá trình này chỉ diễn ra một lần khi ứng dụng khởi động và có thể mất vài phút. Vui lòng không đóng ứng dụng.")
+        
+        if not DB_ZIP_URL or DB_ZIP_URL == "YOUR_DIRECT_DOWNLOAD_LINK_TO_THE_DB_ZIP_FILE":
+            st.error("Lỗi cấu hình: Vui lòng cung cấp đường dẫn tải trực tiếp (DB_ZIP_URL) trong file app.py.")
+            return False
+
+        try:
+            # Tải file zip
+            with st.spinner('Đang tải database (có thể mất vài phút)...'):
+                response = requests.get(DB_ZIP_URL, stream=True)
+                response.raise_for_status() # Báo lỗi nếu tải thất bại
+            
+            # Giải nén file zip vào thư mục hiện tại
+            with st.spinner('Đang giải nén database...'):
+                with zipfile.ZipFile(BytesIO(response.content)) as z:
+                    z.extractall('.')
+            
+            st.success("Database đã được thiết lập thành công! Đang tải lại ứng dụng...")
+            # Chờ một chút để hệ thống file ổn định rồi chạy lại app
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Đã xảy ra lỗi khi tải hoặc giải nén database: {e}")
+            return False
+            
+    return True
 
 # --- KHỞI TẠO AI VÀ DATABASE ---
 @st.cache_resource
@@ -33,7 +75,8 @@ def load_models_and_db():
         
         return llm_model, collection
     except Exception as e:
-        st.error(f"Lỗi khởi tạo: {e}")
+        # Lỗi này thường xảy ra nếu database chưa được tải về xong
+        st.error(f"Lỗi khởi tạo database: {e}. Có thể database đang được tải về. Trang sẽ tự làm mới.")
         return None, None
 
 # --- HÀM LOGIC XỬ LÝ CÂU HỎI ---
@@ -91,54 +134,59 @@ st.set_page_config(page_title="Trợ lý Y học Cổ truyền", page_icon="🌿
 st.title("🌿 Trợ lý Y học Cổ truyền")
 st.write("Đặt câu hỏi để tra cứu kiến thức từ kho dữ liệu y học cổ truyền.")
 
-llm_model, collection = load_models_and_db()
+# Bước 1: Đảm bảo database đã sẵn sàng
+database_ready = setup_database()
 
-if llm_model and collection:
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Bước 2: Chỉ tải model và hiển thị giao diện chat nếu database đã sẵn sàng
+if database_ready:
+    llm_model, collection = load_models_and_db()
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"], unsafe_allow_html=True)
+    if llm_model and collection:
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
 
-    if prompt := st.chat_input("Ví dụ: Bệnh Thái Dương là gì?"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"], unsafe_allow_html=True)
 
-        with st.chat_message("assistant"):
-            with st.spinner("AI đang phân tích và tổng hợp..."):
-                response_text, sources, usage_info = get_ai_response(prompt, llm_model, collection)
-                
-                # Tạo nội dung hiển thị chính
-                source_markdown = "\n\n---\n**Nguồn tham khảo:**\n" + "\n".join([f"- `{s}`" for s in sources])
-                full_response = response_text + source_markdown
-                st.markdown(full_response)
-                
-                # Hiển thị thông tin sử dụng API trong một expander
-                if usage_info:
-                    with st.expander("Xem chi tiết sử dụng API"):
-                        col1, col2, col3, col4 = st.columns(4)
-                        col1.metric("Tokens Đầu vào", usage_info['prompt_tokens'])
-                        col2.metric("Tokens Đầu ra", usage_info['response_tokens'])
-                        col3.metric("Tổng Tokens", usage_info['total_tokens'])
-                        col4.metric("Chi phí (USD)", f"${usage_info['cost_usd']:.6f}")
-                        st.caption(f"Mô hình sử dụng: `{usage_info['model']}`")
+        if prompt := st.chat_input("Ví dụ: Bệnh Thái Dương là gì?"):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-        # Lưu lại toàn bộ nội dung đã hiển thị vào lịch sử chat
-        if usage_info:
-            usage_html = f"""
-            <details>
-                <summary>Xem chi tiết sử dụng API</summary>
-                <div style="padding: 10px; background-color: #f0f2f6; border-radius: 5px;">
-                    <p><b>Mô hình:</b> {usage_info['model']}</p>
-                    <p><b>Tokens Đầu vào:</b> {usage_info['prompt_tokens']}</p>
-                    <p><b>Tokens Đầu ra:</b> {usage_info['response_tokens']}</p>
-                    <p><b>Tổng Tokens:</b> {usage_info['total_tokens']}</p>
-                    <p><b>Chi phí (USD):</b> ${usage_info['cost_usd']:.6f}</p>
-                </div>
-            </details>
-            """
-            full_response += usage_html
+            with st.chat_message("assistant"):
+                with st.spinner("AI đang phân tích và tổng hợp..."):
+                    response_text, sources, usage_info = get_ai_response(prompt, llm_model, collection)
+                    
+                    # Tạo nội dung hiển thị chính
+                    source_markdown = "\n\n---\n**Nguồn tham khảo:**\n" + "\n".join([f"- `{s}`" for s in sources])
+                    full_response = response_text + source_markdown
+                    st.markdown(full_response)
+                    
+                    # Hiển thị thông tin sử dụng API trong một expander
+                    if usage_info:
+                        with st.expander("Xem chi tiết sử dụng API"):
+                            col1, col2, col3, col4 = st.columns(4)
+                            col1.metric("Tokens Đầu vào", usage_info['prompt_tokens'])
+                            col2.metric("Tokens Đầu ra", usage_info['response_tokens'])
+                            col3.metric("Tổng Tokens", usage_info['total_tokens'])
+                            col4.metric("Chi phí (USD)", f"${usage_info['cost_usd']:.6f}")
+                            st.caption(f"Mô hình sử dụng: `{usage_info['model']}`")
 
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+            # Lưu lại toàn bộ nội dung đã hiển thị vào lịch sử chat
+            if usage_info:
+                usage_html = f"""
+                <details>
+                    <summary>Xem chi tiết sử dụng API</summary>
+                    <div style="padding: 10px; background-color: #f0f2f6; border-radius: 5px;">
+                        <p><b>Mô hình:</b> {usage_info['model']}</p>
+                        <p><b>Tokens Đầu vào:</b> {usage_info['prompt_tokens']}</p>
+                        <p><b>Tokens Đầu ra:</b> {usage_info['response_tokens']}</p>
+                        <p><b>Tổng Tokens:</b> {usage_info['total_tokens']}</p>
+                        <p><b>Chi phí (USD):</b> ${usage_info['cost_usd']:.6f}</p>
+                    </div>
+                </details>
+                """
+                full_response += usage_html
+
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
