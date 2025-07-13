@@ -1,5 +1,5 @@
 # file: app.py
-# Phiên bản hoàn chỉnh: Giao diện tinh gọn, ẩn chi tiết API, hiển thị tổng chi phí ở góc phải.
+# Phiên bản hoàn chỉnh: Giao diện tinh gọn, hiển thị chi phí ở góc trái.
 
 # --- PHẦN SỬA LỖI QUAN TRỌNG CHO STREAMLIT CLOUD ---
 # Ba dòng này phải nằm ở ngay đầu file
@@ -189,13 +189,13 @@ if setup_database():
             # Chạy lại để cập nhật tổng chi phí
             st.rerun()
 
-    # Hiển thị tổng chi phí ở góc dưới bên phải
+    # Hiển thị tổng chi phí ở góc dưới bên trái
     # Sử dụng HTML và CSS để định vị
     total_cost_display = f"""
     <div style="
         position: fixed;
-        bottom: 45px; /* Đã tăng giá trị từ 10px lên 45px */
-        right: 10px;
+        bottom: 10px;
+        left: 10px; /* Đã đổi từ right sang left */
         background-color: #f0f2f6;
         padding: 5px 10px;
         border-radius: 5px;
@@ -204,7 +204,7 @@ if setup_database():
         z-index: 1000;
         color: #333;
     ">
-        Tổng chi phí phiên này: {st.session_state.total_session_cost_vnd:,.0f} VNĐ
+        API: {st.session_state.total_session_cost_vnd:,.0f} VNĐ
     </div>
     """
     st.markdown(total_cost_display, unsafe_allow_html=True)
